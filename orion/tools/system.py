@@ -10,8 +10,8 @@ def register(mcp):
 
     @mcp.tool()
     def get_current_time() -> str:
-        """Return the current date and time in ISO 8601 format."""
-        return datetime.datetime.now().isoformat()
+        """Return the current local date and time."""
+        return datetime.datetime.now().astimezone().strftime("%A, %B %d, %Y %I:%M %p %Z")
 
     @mcp.tool()
     def get_system_info() -> dict:

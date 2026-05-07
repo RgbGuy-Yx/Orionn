@@ -1,167 +1,191 @@
-# F.R.I.D.A.Y. — Tony Stark Demo
+# ORION Realtime Desktop Assistant (Tony Stark Demo)
 
-> *"Fully Responsive Intelligent Digital Assistant for You"*
+## Introduction
+ORION is a realtime, voice-first desktop assistant inspired by Tony Stark-style AI systems. It combines a low-latency voice pipeline (STT -> LLM -> TTS) with an MCP tool backend so the assistant can not only talk, but also perform visible desktop actions during demos.
 
-A Tony Stark-inspired AI assistant split into two cooperating pieces:
+This project is intentionally lightweight and modular: one process hosts MCP tools and another process runs the LiveKit voice agent.
 
-| Component | What it is |
-|-----------|-----------|
-| **MCP Server** (`uv run friday`) | A [FastMCP](https://github.com/jlowin/fastmcp) server that exposes tools (news, web search, system info, …) over SSE. Think of it as the Stark Industries backend — it does the actual work. |
-| **Voice Agent** (`uv run friday_voice`) | A [LiveKit Agents](https://github.com/livekit/agents) voice pipeline that listens to your microphone, reasons with an LLM (Gemini 2.5 Flash by default), and speaks back with OpenAI TTS — all while pulling tools from the MCP server in real time. |
+## Problem Statement
+Most conversational assistants can answer text questions but struggle to demonstrate actionable desktop control in real time. For demo environments, you need a system that can:
 
-Demo: [Instagram reel](https://www.instagram.com/p/DW2HjYtkwg_/)
+1. Understand spoken commands quickly.
+2. Trigger reliable tool actions (open URLs, search, launch apps).
+3. Return spoken confirmations naturally.
+4. Stay stable when one provider is unavailable.
 
-[![Demo Video Guide](https://img.youtube.com/vi/mMY9swqe3BI/maxresdefault.jpg)](https://www.youtube.com/watch?v=mMY9swqe3BI)
+## Proposed Solution
+ORION uses a two-process architecture:
 
----
+1. MCP Server (FastMCP): exposes tool APIs over SSE.
+2. Voice Agent (LiveKit Agents): handles streaming audio, LLM reasoning, tool invocation, and speech synthesis.
 
-## How it works
+The assistant supports realtime voice interaction and visible desktop actions such as:
 
+1. Search Google.
+2. Search YouTube.
+3. Open websites.
+4. Launch common Windows applications.
+5. Open world and finance visual dashboards.
+
+## System Specifications and Requirements
+
+### Runtime Requirements
+1. OS: Windows (primary demo target; app launcher mappings are Windows-oriented).
+2. Python: 3.11+
+3. Package manager: `uv`
+4. Network access for LiveKit, LLM providers, and RSS/dashboard URLs.
+
+### Required Environment Variables
+1. `LIVEKIT_URL`
+2. `LIVEKIT_API_KEY`
+3. `LIVEKIT_API_SECRET`
+4. `SARVAM_API_KEY`
+5. `GROQ_API_KEY`
+
+### Optional / Conditional Environment Variables
+1. `OPENROUTER_API_KEY` (fallback only)
+2. `DEEPGRAM_API_KEY`
+
+### Installation
+```bash
+uv sync
 ```
-Microphone ──► STT (Sarvam Saaras v3)
-                    │
-                    ▼
-             LLM (Gemini 2.5 Flash)  ◄──────► MCP Server (FastMCP / SSE)
-                    │                              ├─ get_world_news
-                    ▼                              ├─ open_world_monitor
-             TTS (OpenAI nova)                     ├─ search_web
-                    │                              └─ …more tools
-                    ▼
-             Speaker / LiveKit room
+
+### Run
+Start MCP server:
+```bash
+uv run orion
 ```
 
-The voice agent connects to the MCP server via SSE at `http://127.0.0.1:8000/sse` (auto-resolved to the Windows host IP when running inside WSL).
-
----
-
-## Project structure
-
+Start voice agent (new terminal):
+```bash
+uv run orion_voice
 ```
+
+Direct mode alternatives:
+```bash
+uv run agent_orion.py dev
+uv run agent_orion.py console
+```
+
+## Key Features
+1. Realtime voice conversation with STT, LLM reasoning, and TTS playback.
+2. MCP-based modular tools (`orion/tools/*`) with clean registration.
+3. Browser and desktop control tools for demo visibility:
+  1. `search_google(query)`
+  2. `search_youtube(query)`
+  3. `open_website(url)`
+  4. `open_app(app_name)`
+4. News intelligence tools (`get_world_news`, `get_world_finance_news`).
+5. Visual dashboard triggers (`open_world_monitor`, `open_finance_world_monitor`).
+6. Provider flexibility:
+  1. STT: Sarvam (default) or Whisper
+  2. LLM: Groq (default), Gemini, or OpenAI
+  3. TTS: Sarvam (default) or OpenAI
+7. Controlled fallback behavior:
+  1. Gemini fallback is now explicit via `ENABLE_LLM_FALLBACK=true`
+  2. Placeholder Google keys are ignored for fallback
+
+## System Architecture and Workflow
+
+### Architecture
+```text
+ +----------------------+        +---------------------------+
+ |   LiveKit Client     |        |     FastMCP Server        |
+ | (Playground / Room)  |        |        (server.py)        |
+ +----------+-----------+        +-------------+-------------+
+        |                                  ^
+        v                                  |
+ +----------------------+   SSE Tool Calls     |
+ |   agent_orion.py     +----------------------+
+ |  (LiveKit Agent)     |
+ |  - STT (Sarvam)      |
+ |  - LLM (Groq, etc.)  |
+ |  - TTS (Sarvam)      |
+ +----------+-----------+
+        |
+        v
+  Browser / Desktop Actions
+```
+
+### Workflow
+1. User speaks in LiveKit room.
+2. STT transcribes speech to text.
+3. LLM interprets intent and decides whether a tool is required.
+4. If needed, the agent calls MCP tools over SSE.
+5. Tool executes action (fetch feed, open URL, launch app, etc.).
+6. Tool response is returned to the agent.
+7. LLM produces natural response.
+8. TTS synthesizes audio reply.
+9. Audio is streamed back to the user.
+
+## Tech Stack
+1. Language: Python 3.11+
+2. Agent Runtime: LiveKit Agents
+3. Tooling Protocol: FastMCP (SSE transport)
+4. STT: Sarvam Saaras v3 (default)
+5. LLM: Groq Llama 3.3 70B Versatile (default), OpenRouter DeepSeek fallback
+6. TTS: Sarvam Bulbul v2 (default)
+7. HTTP Client: `httpx`
+8. Utility Modules: `webbrowser`, `subprocess`, `urllib.parse`
+9. Env Management: `python-dotenv`
+10. Dependency/Run Tool: `uv`
+
+## Performance Evaluation
+
+### What to Measure
+1. End-to-end response latency (speech start to first audio response).
+2. STT transcript delay.
+3. Tool call round-trip time (agent -> MCP -> agent).
+4. Tool success rate (open app, open website, searches).
+5. Session stability (disconnects, retries, fallback events).
+
+### Current Observations (from logs)
+1. End-to-end behavior is stable for demo flow: speech is captured, transcribed, processed, and played back reliably.
+2. STT is streaming continuously and detecting speech boundaries correctly in normal usage.
+3. Transcript delays are typically around sub-second to low-second range, which feels responsive for realtime interaction.
+4. Tool execution paths (news, browser open, app launch) are working as expected in standard scenarios.
+5. A few minor bugs remain, mostly around configuration edge cases (for example invalid fallback API keys or provider toggles), but core assistant behavior is functioning well.
+
+### Recommended Demo Benchmarks
+1. Median transcript delay: < 1.2s
+2. Median tool execution feedback: < 1.0s
+3. Successful tool invocation rate: > 95% over 20 scripted commands
+4. Session uptime during demo: 15+ minutes without agent crash
+
+## Repository Structure
+```text
 friday-tony-stark-demo/
-├── server.py           # uv run friday  → starts the MCP server (SSE on :8000)
-├── agent_friday.py     # uv run friday_voice → starts the LiveKit voice agent
-├── pyproject.toml
-├── .env.example        # copy → .env and fill in your keys
-│
-└── friday/             # MCP server package
-    ├── config.py       # env-var loading & app-wide settings
-    ├── tools/          # MCP tools (callable by the LLM)
-    │   ├── web.py      # search_web, fetch_url, get_world_news, open_world_monitor
-    │   ├── system.py   # get_current_time, get_system_info
-    │   └── utils.py    # format_json, word_count
-    ├── prompts/        # MCP prompt templates (summarize, explain_code, …)
-    └── resources/      # MCP resources exposed to clients (friday://info)
+|-- server.py
+|-- agent_orion.py
+|-- main.py
+|-- pyproject.toml
+|-- README.md
+`-- orion/
+   |-- config.py
+   |-- prompts/
+   |   `-- templates.py
+   |-- resources/
+   |   `-- data.py
+   `-- tools/
+      |-- __init__.py
+      |-- web.py
+      |-- browser.py
+      |-- system.py
+      `-- utils.py
 ```
 
----
+## Tooling Notes
+1. `orion/tools/browser.py` provides demo-friendly browser and app-launch actions.
+2. `orion/tools/web.py` handles world and finance feed retrieval and dashboard launch.
+3. `orion/tools/__init__.py` is the registration hub for all tool modules.
 
-## Quick start
+## Known Limitations
+1. `search_web` in `orion/tools/web.py` remains a stub.
+2. Some app launch commands depend on app availability in system PATH.
+3. Network outages or API quota limits can affect provider behavior.
 
-### 1. Prerequisites
-
-- Python ≥ 3.11
-- [`uv`](https://github.com/astral-sh/uv) — `pip install uv` or `curl -Lsf https://astral.sh/uv/install.sh | sh`
-- A [LiveKit Cloud](https://cloud.livekit.io) project (free tier works)
-
-### 2. Clone & install
-
-```bash
-git clone https://github.com/SAGAR-TAMANG/friday-tony-stark-demo.git
-cd friday-tony-stark-demo
-uv sync          # creates .venv and installs all dependencies
-```
-
-### 3. Set up environment
-
-```bash
-cp .env.example .env
-# Open .env and fill in your API keys (see the section below)
-```
-
-### 4. Run — two terminals
-
-**Terminal 1 — MCP server** (must start first)
-
-```bash
-uv run friday
-```
-
-Starts the FastMCP server on `http://127.0.0.1:8000/sse`. The voice agent connects here to fetch its tools.
-
-**Terminal 2 — Voice agent**
-
-```bash
-uv run friday_voice
-```
-
-Starts the LiveKit voice agent in **dev mode** — it joins a LiveKit room and begins listening. Open the [LiveKit Agents Playground](https://agents-playground.livekit.io) and connect to your room to talk to FRIDAY.
-
----
-
-## `uv run friday` vs `uv run friday_voice`
-
-| Command | Entry point | What it does |
-|---------|------------|--------------|
-| `uv run friday` | `server.py → main()` | Launches the **FastMCP server** over SSE transport on port 8000. This is the "brain backend" — it registers all tools, prompts, and resources that the LLM can call. |
-| `uv run friday_voice` | `agent_friday.py → dev()` | Launches the **LiveKit voice agent**. It builds the STT / LLM / TTS pipeline, connects to your LiveKit room, and wires up the MCP server as a tool source. The `dev()` wrapper auto-injects the `dev` CLI flag so you don't have to type it manually. |
-
-> Both processes must run **simultaneously**. The voice agent calls the MCP server in real time whenever it needs a tool (e.g. fetching news).
-
----
-
-## Environment variables
-
-Copy `.env.example` → `.env` and fill in the values below.
-
-| Variable | Required | Where to get it |
-|----------|----------|----------------|
-| `LIVEKIT_URL` | ✅ | [LiveKit Cloud dashboard](https://cloud.livekit.io) → your project URL |
-| `LIVEKIT_API_KEY` | ✅ | LiveKit Cloud → API Keys |
-| `LIVEKIT_API_SECRET` | ✅ | LiveKit Cloud → API Keys |
-| `GROQ_API_KEY` | optional | [console.groq.com](https://console.groq.com) — only needed if you switch `LLM_PROVIDER` to `"groq"` |
-| `SARVAM_API_KEY` | ✅ (default STT) | [dashboard.sarvam.ai](https://dashboard.sarvam.ai) |
-| `OPENAI_API_KEY` | ✅ (default TTS) | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| `DEEPGRAM_API_KEY` | optional | [console.deepgram.com](https://console.deepgram.com) |
-| `GOOGLE_APPLICATION_CREDENTIALS` | optional | GCP service-account JSON path — only for `STT_PROVIDER = "google"` |
-| `GOOGLE_API_KEY` | ✅ (default LLM) | [aistudio.google.com](https://aistudio.google.com/projects) |
-| `SUPABASE_URL` | optional | [supabase.com](https://supabase.com) — for the ticketing tool |
-| `SUPABASE_API_KEY` | optional | Supabase project → API settings |
-
----
-
-## Switching providers
-
-Open `agent_friday.py` and change the provider constants at the top:
-
-```python
-STT_PROVIDER = "sarvam"   # "sarvam" | "whisper"
-LLM_PROVIDER = "gemini"   # "gemini" | "openai"
-TTS_PROVIDER = "openai"   # "openai" | "sarvam"
-```
-
----
-
-## Adding a new tool
-
-1. Create or open a file in `friday/tools/`
-2. Define a `register(mcp)` function and decorate tools with `@mcp.tool()`
-3. Import and call `register(mcp)` inside `friday/tools/__init__.py`
-
-The MCP server will pick it up on next start.
-
----
-
-## Tech stack
-
-- **[FastMCP](https://github.com/jlowin/fastmcp)** — MCP server framework
-- **[LiveKit Agents](https://github.com/livekit/agents)** — real-time voice pipeline
-- **Sarvam Saaras v3** — STT (Indian-English optimised)
-- **Google Gemini 2.5 Flash** — LLM
-- **OpenAI TTS** (`nova` voice) — TTS
-- **[uv](https://github.com/astral-sh/uv)** — fast Python package manager
-
----
-
-## License
-
-MIT
+## Future Improvements
+1. Implement robust web search in `search_web` with a provider-backed API.
+2. Add structured latency logging and benchmark scripts.
+3. Add lightweight health checks for provider credentials before session start.

@@ -1,20 +1,20 @@
 [project]
-name = "friday-tony-stark-demo"
+name = "orion-tony-stark-demo"
 version = "0.1.0"
-description = "Friday — A Tony Stark-inspired MCP server"
+description = "Orion - A Tony Stark-inspired MCP server"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastmcp",
     "httpx",
-    "livekit-agents[deepgram,groq,openai,sarvam,silero]>=1.5.1",
-    "livekit-plugins-google>=1.5.1",
+    "livekit-agents[groq,sarvam,silero,openai]>=1.5.1",
+    "openai",
     "python-dotenv",
 ]
 
 [project.scripts]
-friday = "server:main"
-friday_voice = "agent_friday:dev" # Points to the wrapper
+orion = "server:main"
+orion_voice = "agent_orion:dev"
 
 [build-system]
 requires = ["hatchling"]
@@ -22,3 +22,4 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["server.py"]
+

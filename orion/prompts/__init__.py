@@ -2,7 +2,7 @@
 MCP Prompts — reusable prompt templates exposed to the client.
 """
 
-from friday.prompts import templates
+from orion.prompts import templates
 
 
 def register_all_prompts(mcp):
