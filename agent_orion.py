@@ -18,8 +18,7 @@ import subprocess
 import os
 from collections.abc import AsyncGenerator
 
-import httpx
-from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitError
+from openai import APIConnectionError, APITimeoutError, RateLimitError
 from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli
 from livekit.agents.types import NOT_GIVEN
