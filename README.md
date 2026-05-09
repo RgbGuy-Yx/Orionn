@@ -1,4 +1,4 @@
-# ORION Realtime Desktop Assistant 
+# ORION Realtime Desktop Assistant
 
 ## Introduction
 ORION is a realtime, voice-first desktop assistant inspired by Tony Stark-style AI systems. It combines a low-latency voice pipeline (STT -> LLM -> TTS) with an MCP tool backend so the assistant can not only talk, but also perform visible desktop actions during demos.
